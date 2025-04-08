@@ -4,10 +4,11 @@ const mongoose = require("mongoose");
 const campainModel = require("../models/campaignModel");
 const peopleModel = require("../models/peopleModel");
 const commitmentModel2 = require("../models/commitmentsModel")
+const memorialDayModel = require("../models/memorialDaysModel");
 
 exports.addCampain = asyncHandler(async (req, res, next) => {
 
-  const { startDate, endDate, CampainName, minimumAmountForMemorialDay } = req.body;
+  const { startDate, endDate, CampainName ,types} = req.body;
   const hebrewStartDate = startDate.jewishDateStrHebrew;
   const hebrewEndDate = endDate.jewishDateStrHebrew;
   const newCampain = await campainModel.create({
@@ -16,7 +17,7 @@ exports.addCampain = asyncHandler(async (req, res, next) => {
     CampainName: CampainName,
     hebrewStartDate: hebrewStartDate,
     hebrewEndDate: hebrewEndDate,
-    minimumAmountForMemorialDay: minimumAmountForMemorialDay,
+    types:types
   });
   res.status(201).json({
     status: "success",
@@ -320,7 +321,6 @@ exports.editCampainDetails = asyncHandler(async (req, res, next) => {
     const memorialDaysToDelete = req.body.deletedMemorialDays;
     const campaignId = req.params.campainId;
     // console.log(campaignId);
-    console.log('1');
   
     // Start a session for the transaction
     const session = await mongoose.startSession();
@@ -330,7 +330,6 @@ exports.editCampainDetails = asyncHandler(async (req, res, next) => {
       // Fetch the campaign by ID
       const campaign = await campainModel.findById(campaignId).session(session);
       if (!campaign) throw new AppError(404, "קמפיין לא נמצא");
-      console.log('2');
   
       // Check for conflicting dates
       const conflictingCampaign = await campainModel.findOne({
@@ -339,7 +338,6 @@ exports.editCampainDetails = asyncHandler(async (req, res, next) => {
           { startDate: { $lte: endDate }, endDate: { $gte: startDate } },
         ],
       }).session(session);
-      console.log('3');
   
       if (conflictingCampaign) throw new AppError(404, "תאריכים חופפים בקמפיין אחר");
   
@@ -376,7 +374,6 @@ exports.editCampainDetails = asyncHandler(async (req, res, next) => {
         { new: true, session }
       );
       if (!updatedCampaign) throw new AppError(404, "בעיה בעדכון הקמפיין");
-      console.log('4');
   
       // Update related collections if CampainName changes
       if (updateFields.CampainName) {
@@ -399,29 +396,19 @@ exports.editCampainDetails = asyncHandler(async (req, res, next) => {
     //   throw new AppError(404, "בעיה בעדכון הקמפיין");
   
       // Handle MemorialDays deletion
-      console.log('5');
+
       if (memorialDaysToDelete?.length > 0) {
-        const bulkOps = memorialDaysToDelete.map(({ AnashIdentifier, removedDates }) => {
-          // Extract only the 'date' field from removedDates array
-          const dateValues = removedDates.map(item => item.date);
+        const idsToDelete = memorialDaysToDelete.map(doc => doc._id);
       
-          return {
-            updateOne: {
-              filter: {
-                AnashIdentifier,
-                "MemorialDays.date": { $in: dateValues }, // Use only the date values
-              },
-              update: {
-                $pull: { MemorialDays: { date: { $in: dateValues } } }, // Remove based on date values
-              },
-            },
-          };
-        });
+        const deleteResult = await memorialDayModel.deleteMany(
+          { _id: { $in: idsToDelete } },
+          { session }
+        );
       
-        if (bulkOps.length > 0) {
-          await commitmentModel2.bulkWrite(bulkOps, { session });
-        }
+        console.log(`${deleteResult.deletedCount} memorial days deleted`);
       }
+      
+    
         
       // Commit the transaction
       await session.commitTransaction();
@@ -444,55 +431,35 @@ exports.editCampainDetails = asyncHandler(async (req, res, next) => {
 exports.reviewDeletedMemorialDays = asyncHandler(async (req, res, next) => {
   const campainId = req.params.campainId;
   const { startDate, endDate, CampainName } = req.body;
-
+  
   const campaign = await campainModel.findById(campainId);
   if (!campaign) {
     return next(new AppError(404, "קמפיין לא נמצא"));
   }
-  const originalStartDate = campaign.startDate;
-  const originalEndDate = campaign.endDate;
+  const originalStartDate = toDayString(campaign.startDate);
+  const originalEndDate = toDayString(campaign.endDate);
   
-  const updatedStartDate = new Date(startDate);
-  const updatedEndDate = new Date(endDate);
-  
-  // Find commitments related to the campaign
-  const commitments = await commitmentModel2.find({ CampainName });
-  
-  // Initialize an array to store removed memorial days
-  const deletedMemorialDays = [];
-  
-  for (const commitment of commitments) {
-      const removedDates = commitment.MemorialDays.filter((memorialDay) => {
-          const date = new Date(memorialDay.date); // Access the `date` property
-          
-          // Normalize dates to midnight for day-based comparison
-          const normalizeToDay = (d) =>
-            new Date(d.getFullYear(), d.getMonth(), d.getDate());
-          
-          const normalizedDate = normalizeToDay(date);
-          const normalizedOriginalStart = normalizeToDay(originalStartDate);
-          const normalizedOriginalEnd = normalizeToDay(originalEndDate);
-          const normalizedUpdatedStart = normalizeToDay(updatedStartDate);
-          const normalizedUpdatedEnd = normalizeToDay(updatedEndDate);
-          return (
-              normalizedDate >= normalizedOriginalStart &&
-              normalizedDate <= normalizedOriginalEnd &&
-              (normalizedDate < normalizedUpdatedStart ||
-          normalizedDate > normalizedUpdatedEnd)
-      );
-    });
+  const updatedStartDate = toDayString(startDate);
+  const updatedEndDate = toDayString(endDate);
+  console.log(originalStartDate, originalEndDate);
+  console.log(updatedStartDate, updatedEndDate);
+    // const { startDate, endDate } = req.query;
     
-    // Add the full objects with removed dates to the list
-    if (removedDates?.length > 0) {
-      deletedMemorialDays.push({
-        commitmentId: commitment._id,
-        removedDates, // Include full objects that meet the condition
-        AnashIdentifier: commitment.AnashIdentifier,
-        FirstName: commitment.FirstName,
-        LastName: commitment.LastName,
-      });
-    }
-  }
+  
+  
+    const deletedMemorialDays = await memorialDayModel.find({
+      date: {
+        $gte: originalStartDate,
+        $lte: originalEndDate
+      },
+      $or: [
+        { date: { $lt: updatedStartDate} },
+        { date: { $gt: updatedEndDate } }
+      ]
+    }).populate('types.person');
+    console.log(deletedMemorialDays);
+          
+
 
   res.status(200).json({
     status: "success",
@@ -500,3 +467,56 @@ exports.reviewDeletedMemorialDays = asyncHandler(async (req, res, next) => {
     deletedMemorialDays,
   });
 });
+function toDayString(date) {
+  return new Date(date).toISOString().split('T')[0];
+}
+
+
+exports.deleteCampain = asyncHandler(async (req, res, next) => {
+  const campainId = req.params.campainId;
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const campain = await campainModel.findById(campainId).session(session);
+
+    if (!campain) { 
+      return next(new AppError(404, "קמפיין לא נמצא"));
+    }
+    const commitmentCount = await commitmentModel2.countDocuments({ CampainName: campain.CampainName }).session(session);
+    if(commitmentCount > 0){
+      return next(new AppError(404, "לא ניתן למחוק קמפיין כשיש התחייבויות בקמפיין")); 
+    }
+
+    const removeCampainFromPeople = await peopleModel.updateMany(
+      { Campaigns: campain.CampainName },
+      { $pull: { Campaigns: campain.CampainName } },
+      { session }
+    );
+
+    const deletedCampain = await campainModel.findOneAndDelete(
+      { _id: campainId },
+      { session }
+    );
+    
+    if (!deletedCampain) {
+      return next(new AppError(404, "קמפיין לא נמצא"));
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      status: "success",
+      data: { deletedCampain },
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    next(new AppError(error?.code, error));
+  }
+});
+
+
+

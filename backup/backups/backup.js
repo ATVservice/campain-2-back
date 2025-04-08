@@ -17,6 +17,13 @@ const BACKUP_DIR = path.join(__dirname);
 
 // Function to run the backup
 const backupMiddleware = async (req, res, next) => {
+  // const commitments = Array.isArray(req.body) ? req.body : [req.body];
+  const items = Array.isArray(req.body) ? req.body : [req.body];
+  if(!items || items?.length <= 1){
+    next();
+    
+  }
+
 
   // console.error("START OF MIDDLEWARE");
   // console.error("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
