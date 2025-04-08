@@ -663,30 +663,52 @@ exports.AddMemorialDayToPerson = asyncHandler(async (req, res, next) => {
 
 exports.DeleteMemorialDay = asyncHandler(async (req, res, next) => {
   const { AnashIdentifier, CampainName, date } = req.query;
-  const commitment = await commitmentsModel.findOne({
-    AnashIdentifier: AnashIdentifier,
-    CampainName: CampainName,
-  });
-  if (!commitment) {
-    return next(new AppError("Commitment not found", 404));
-  }
-  let updatedMemorialDays = commitment.MemorialDays;
-  updatedMemorialDays = commitment.MemorialDays.filter((day) => {
-    return !isTheSameDate(new Date(day.date), new Date(date));
-  });
+  const session = await commitmentsModel.startSession();
 
-  if (updatedMemorialDays.length === commitment.MemorialDays.length) {
-    return next(new AppError("Date not found", 404));
+  try {
+    session.startTransaction();
+
+    const commitment = await commitmentsModel.findOne({
+      AnashIdentifier: AnashIdentifier,
+      CampainName: CampainName,
+    }).session(session);
+
+    if (!commitment) {
+      await session.abortTransaction();
+      session.endSession();
+      return next(new AppError("Commitment not found", 404));
+    }
+
+    let updatedMemorialDays = commitment.MemorialDays.filter((day) => {
+      return !isTheSameDate(new Date(day.date), new Date(date));
+    });
+
+    if (updatedMemorialDays.length === commitment.MemorialDays.length) {
+      await session.abortTransaction();
+      session.endSession();
+      return next(new AppError("Date not found", 404));
+    }
+
+    commitment.MemorialDays = updatedMemorialDays;
+    const updatedCommitment = await commitment.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        updatedCommitment,
+      },
+    });
+
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    return next(new AppError(`Transaction failed: ${err.message}`, 500));
   }
-  commitment.MemorialDays = updatedMemorialDays;
-  const updatedCommitment = await commitment.save();
-  res.status(200).json({
-    status: "success",
-    data: {
-      updatedCommitment,
-    },
-  });
 });
+
 function isTheSameDate(date1, date2) {
   return (
     date1.getFullYear() === date2.getFullYear() &&
@@ -816,23 +838,33 @@ exports.GetEligblePeopleToMemmorialDay = asyncHandler(
 
 exports.updateMemorialDay = asyncHandler(async (req, res, next) => {
   const memorialDay = req.body;
-  
+  const session = await memorialDaysModel.startSession();
 
-  // return next(new AppError("Not implemented", 501));
+  try {
+    session.startTransaction();
 
-  const result = await memorialDaysModel.updateOne(
-    { date: memorialDay.date },
-    memorialDay,
-    { upsert: true }
-  );
-  if(memorialDay.types.length === 0){
-    await memorialDaysModel.deleteOne({ date: memorialDay.date });
+    const result = await memorialDaysModel.updateOne(
+      { date: memorialDay.date },
+      memorialDay,
+      { upsert: true, session }
+    );
+
+    if (memorialDay.types.length === 0) {
+      await memorialDaysModel.deleteOne({ date: memorialDay.date }, { session });
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({
+      status: "success",
+      result
+    });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    return next(new AppError(`Transaction failed: ${err.message}`, 500));
   }
-
-  res.status(200).json({
-    status: "success",
-    result
-  });
 });
 exports.getMemorialDaysByRangeDates = asyncHandler(async (req, res, next) => {
   const { startDate, endDate } = req.query;
