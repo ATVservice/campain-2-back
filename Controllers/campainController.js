@@ -1,10 +1,10 @@
 const asyncHandler = require("express-async-handler");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
-const campainModel = require("../models/campaignModel");
+const campainModel = require("../Models/campaignModel");
 const peopleModel = require("../models/peopleModel");
-const commitmentModel2 = require("../models/commitmentsModel")
-const memorialDayModel = require("../models/memorialDaysModel");
+const commitmentModel2 = require("../Models/commitmentsModel")
+const memorialDayModel = require("../Models/memorialDaysModel");
 
 exports.addCampain = asyncHandler(async (req, res, next) => {
 
