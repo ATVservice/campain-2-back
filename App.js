@@ -16,7 +16,7 @@ const helmet = require('helmet');
 
 require('dotenv').config();
 const corsOptions = {
-  origin: ['http://localhost:5174', 'http://localhost:5173','https://menegmentapp.netlify.app','https://campaign-front-production.up.railway.app'],  // Add both dev and prod URLs here
+  origin: ['http://localhost:5174', 'http://localhost:5173','https://menegmentapp.netlify.app','https://campaign-2-front-production.up.railway.app'],  // Add both dev and prod URLs here
   
   credentials:true
 }
