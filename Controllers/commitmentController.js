@@ -1,12 +1,11 @@
 const asyncHandler = require("express-async-handler");
-const commitmentsModel = require("../models/commitmentsModel");
-const campainModel = require("../models/campaignModel");
+const commitmentsModel = require("../Models/commitmentsModel");
+const campainModel = require("../Models/campaignModel");
 const paymentModel = require("../models/paymentModel");
 const People = require("../models/peopleModel");
-const pettyCash = require("../models/pettyCashModel");
 const AppError = require("../utils/AppError");
 // const { backupDatabase } = require("../backup/backups/backup");
-const memorialDaysModel = require("../models/memorialDaysModel");
+const memorialDaysModel = require("../Models/memorialDaysModel");
 
 
 
