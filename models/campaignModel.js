@@ -21,10 +21,12 @@ const campaignSchema = new mongoose.Schema({
   hebrewEndDate: {
     type: String
   },
-  minimumAmountForMemorialDay: {
-    type: Number,
-    required: [true, 'minimumAmountForMemorialDay Date is required']
-  }
+  types:[{
+    type: String,}]
+  // minimumAmountForMemorialDay: {
+  //   type: Number,
+  //   required: [true, 'minimumAmountForMemorialDay Date is required']
+  // }
 });
 
 // Pre-save hook to check for date overlap
@@ -59,8 +61,6 @@ campaignSchema.pre('save', async function (next) {
   next();
 });
 
-// Optionally, use AutoIncrement for campaign IDs
-// campaignSchema.plugin(AutoIncrement, { inc_field: 'CampaignID', startAt: 1, incrementBy: 1 });
 
 const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema);
 

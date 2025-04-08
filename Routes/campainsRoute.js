@@ -18,5 +18,6 @@ router.route('/edit-campain-details/:campainId').post( authController.protect, c
 router.route('/review-deleted-memorial-dates/:campainId').post(authController.protect, campainController.reviewDeletedMemorialDays)
 router.route('/review-befour-add-people-to-campain').post( authController.protect, campainController.reviewBeforeAddPeopleToCampaign)
 router.route('/add-people-to-campain').post( authController.protect, campainController.addPeopleToCampaign)
+router.route('/delete-campain/:campainId').delete( authController.protect, campainController.deleteCampain)
 
 module.exports = router

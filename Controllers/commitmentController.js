@@ -6,6 +6,7 @@ const People = require("../models/peopleModel");
 const pettyCash = require("../models/pettyCashModel");
 const AppError = require("../utils/AppError");
 // const { backupDatabase } = require("../backup/backups/backup");
+const memorialDaysModel = require("../models/memorialDaysModel");
 
 
 
@@ -488,7 +489,8 @@ exports.deleteCommitment = asyncHandler(async (req, res, next) => {
     if (commitmentPayments?.length > 0) {
       throw new AppError(400, "לא ניתן למחוק התחייבות כי קיימים תשלומים בהתחייבות");
     }
-
+    
+    
     // Delete commitment
     const deletedCommitment = await commitmentsModel
       .findByIdAndDelete(commitmentId)
@@ -497,12 +499,31 @@ exports.deleteCommitment = asyncHandler(async (req, res, next) => {
     if (!deletedCommitment) {
       throw new AppError(400, "התחייבות לא נמצאה");
     }
+    const camapin  = await campainModel.findOne({CampainName: deletedCommitment.CampainName});
+    const person = await People.findOne({AnashIdentifier: deletedCommitment.AnashIdentifier});
 
-    // Delete payments related to the commitment
+
+    
+    
     const deletedPayments = await paymentModel
-      .deleteMany({ CommitmentId: commitmentId })
-      .session(session);
-
+    .deleteMany({ CommitmentId: commitmentId })
+    .session(session);
+    
+    await memorialDaysModel.updateMany(
+      { 
+        'types.person': person._id,
+        campainId: camapin._id // ← כאן אתה מציב את ה-ID של הקמפיין שאתה רוצה
+      },
+      {
+        $pull: {
+          types: { person: person._id }
+        }
+      }
+    ).session(session);
+    await memorialDaysModel.deleteMany({
+      campainId: camapin._id,
+      types: { $size: 0 }
+    }).session(session);
     // Find user for logging purposes
     const user = await People.findOne({
       AnashIdentifier: deletedCommitment.AnashIdentifier,
@@ -639,41 +660,6 @@ exports.AddMemorialDayToPerson = asyncHandler(async (req, res, next) => {
     next(error); // Pass error to the global error handler
   }
 });
-exports.GetEligblePeopleToMemmorialDay = asyncHandler(
-  async (req, res, next) => {
-    const { campainName } = req.params;
-    const campain = await campainModel.findOne({ CampainName: campainName });
-    if (!campain) {
-      return next(new AppError("Campain not found", 404));
-    }
-    const commitments = await commitmentsModel
-      .find({ CampainName: campainName })
-      .populate("person");
-
-    if (!commitments || commitments.length === 0) {
-      return next(new AppError("Commitments not found", 404));
-    }
-    let people = [];
-
-    commitments.forEach((commitment) => {
-      const remainingMemorialDays =
-        Math.floor(
-          commitment.CommitmentAmount / campain.minimumAmountForMemorialDay
-        ) - commitment.MemorialDays.length;
-      // If the remainingMemorialDays is enough, add the person associated with the commitment
-      if (remainingMemorialDays > 0) {
-        people.push(commitment.person); // This is the person associated with the commitment
-      }
-    });
-
-    res.status(200).json({
-      status: "success",
-      data: {
-        people,
-      },
-    });
-  }
-);
 
 exports.DeleteMemorialDay = asyncHandler(async (req, res, next) => {
   const { AnashIdentifier, CampainName, date } = req.query;
@@ -762,3 +748,184 @@ exports.getCampainIncomSummeryByPaymentMethod = asyncHandler(async (req, res, ne
     commitmentAmoutByPaymentMethod
   });
 });
+
+
+
+
+
+exports.getMemorialDaysByDate = asyncHandler(async (req, res, next) => {
+  const memorialDayDate = new Date(req.params.date);
+  // console.log(memorialDayDate)
+  const nextDay = new Date(memorialDayDate);
+  nextDay.setDate(nextDay.getDate() + 1);
+  // const memorialDate2 = await memorialDaysModel.findOne({
+  // })
+
+//console.log(memorialDate2)
+const memorialDate = await memorialDaysModel.findOne({
+  date: {
+    $gte: memorialDayDate,
+    $lt: nextDay
+  }
+})
+.populate('types.person') // זה השדה האמיתי שצריך לפופולייט
+console.log(memorialDate)
+
+  
+
+
+
+  res.status(200).json(memorialDate||[]);
+});
+
+
+
+exports.GetEligblePeopleToMemmorialDay = asyncHandler(
+  async (req, res, next) => {
+    const { campainName } = req.params;
+    const campain = await campainModel.findOne({ CampainName: campainName });
+    if (!campain) {
+      return next(new AppError("Campain not found", 404));
+    }
+    const maxTypes = campain.types.length;
+    const commitments = await commitmentsModel
+      .find({ CampainName: campainName })
+      .populate("person");
+
+    // if (!commitments || commitments.length === 0) {
+    //   return next(new AppError("Commitments not found", 404));
+    // }
+    let people = [];
+
+    commitments.forEach((commitment) => {
+        people.push(commitment.person); // This is the person associated with the commitment
+      
+    });
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        people,
+        campain
+      },
+    });
+  }
+);
+
+
+
+exports.updateMemorialDay = asyncHandler(async (req, res, next) => {
+  const memorialDay = req.body;
+  
+
+  // return next(new AppError("Not implemented", 501));
+
+  const result = await memorialDaysModel.updateOne(
+    { date: memorialDay.date },
+    memorialDay,
+    { upsert: true }
+  );
+  if(memorialDay.types.length === 0){
+    await memorialDaysModel.deleteOne({ date: memorialDay.date });
+  }
+
+  res.status(200).json({
+    status: "success",
+    result
+  });
+});
+exports.getMemorialDaysByRangeDates = asyncHandler(async (req, res, next) => {
+  const { startDate, endDate } = req.query;
+
+  const memorialDays = await memorialDaysModel.find({
+    date: {
+      $gte: startDate,
+      $lte: endDate
+    }
+  }).sort({ date: 1 });
+
+
+
+
+  res.status(200).json(memorialDays);
+});
+exports.getMemorialDaysByCommitment = asyncHandler(async (req, res, next) => {
+  const { AnashIdentifier, CampainName } = req.query;
+
+  const person = await People.findOne({ AnashIdentifier });
+  if (!person) {
+    return res.status(404).json({ message: 'Person not found' });
+  }
+  // console.log(person)
+
+  const campain = await campainModel.findOne({ CampainName });
+  if (!campain) {
+    return res.status(404).json({ message: 'Campaign not found' });
+  }
+  
+  // console.log(campain.types)
+  // שליפת כל ימי ההנצחה של הקמפיין
+  const memorialDays = await memorialDaysModel
+  .find({ campainId: campain._id }).sort({ date: 1 });
+  // console.log(memorialDays)
+  
+  // סינון לפי הדרישה שלך
+  const filteredMemorials = memorialDays
+  .map(day => {
+    // סינון כל ה-types לפי האדם המבוקש
+    const matchingTypes = day.types.filter(type => {
+      const isMatch = type.person?.equals(person._id);
+      console.log('match?', isMatch);
+      return isMatch;
+    });
+          // console.log(matchingTypes)
+      
+      // מחזיר רק אם יש לפחות אחד
+      if (matchingTypes.length > 0) {
+        return {
+          ...day.toObject(), // הופך ל־JS Object רגיל
+          types: matchingTypes
+        };
+      }
+      
+      return null;
+    })
+    .filter(Boolean); // מסנן את אלו שלא רלוונטיים
+    // console.log('filteredMemorials',filteredMemorials)
+    
+    const orderedTypes = campain.types; // הסדר המקורי מהקמפיין
+    // console.log(filteredMemorials)
+    const sortedMemorialDays = filteredMemorials.map(doc => {
+      // console.log('doc',doc)
+      // console.log('doc',doc)
+      const sortedTypes = [...doc.types].sort((a, b) =>
+        orderedTypes.indexOf(a.name) - orderedTypes.indexOf(b.name)
+      );
+      return {
+        ...doc,
+        types: sortedTypes
+      };
+    });
+  
+
+// console.log('sortedMemorialDays',sortedMemorialDays)
+  res.status(200).json(sortedMemorialDays);
+});
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+

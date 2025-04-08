@@ -23,6 +23,11 @@ router.route('/delete-commitment/:commitmentId').delete( authController.protect,
 // router.route('/get-payments-without-commitment').get( authController.protect,normalizeQueryParams, commitmentController.getPaymentsWithoutCommitment)
 // router.route('/transfer-payment').put( authController.protect,normalizeQueryParams, commitmentController.transferPayment)
 router.route('/get-campain-incom-by-payment-method/:campainName').get( normalizeQueryParams, commitmentController.getCampainIncomSummeryByPaymentMethod)
+router.route('/get-memorial-day-by-date/:date').get( normalizeQueryParams, commitmentController.getMemorialDaysByDate)
+router.route('/update-memorial-day').post( normalizeQueryParams, commitmentController.updateMemorialDay)
+router.route('/get-memorial-days-by-range-dates').get( normalizeQueryParams, commitmentController.getMemorialDaysByRangeDates)
+router.route('/get-memorial-days-by-commitment').get( normalizeQueryParams, commitmentController.getMemorialDaysByCommitment)
+
 router.route('/beckup-test').post( normalizeQueryParams, backupMiddleware);
 
 
