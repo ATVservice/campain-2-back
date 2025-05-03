@@ -58,7 +58,7 @@ exports.getPeopleNotInCampain = asyncHandler(async (req, res, next) => {
 
     // Find people who either do not have the Campaigns property
     // or have a Campaigns property that does not contain the specified campainName
-    const people = await peopleModel.find({
+    let people = await peopleModel.find({
       $and: [
         { isActive: { $eq: true } }, // Ensure isActive is true
         {
@@ -71,7 +71,7 @@ exports.getPeopleNotInCampain = asyncHandler(async (req, res, next) => {
     });
     // If no people are found, return a 404 status
     if (!people || people.length === 0) {
-      return next(new AppError(404, "No people found"));
+      people = [];
     }
 
     // Return the list of people
@@ -205,12 +205,15 @@ exports.addPeopleToCampaign = asyncHandler(async (req, res, next) => {
 });
 
 exports.deletePersonFromCampain = asyncHandler(async (req, res, next) => {
-  const { AnashIdentifier, CampainName } = req.params;
-
+  const { CampainName, AnashIdentifier } = req.params;
+  console.log('1');
+  
   try {
+    console.log(req.params);
     // חיפוש האדם לפי מזהה האנ"ש
     const person = await peopleModel.findOne({ AnashIdentifier });
-
+    // console.log(person)
+// console.log(person)
     if (!person) {
       return next(new AppError(404, "מזהה אנש לא זוהה במערכת"));
     }
@@ -224,11 +227,11 @@ exports.deletePersonFromCampain = asyncHandler(async (req, res, next) => {
       CampainName,
     });
 
-    if (commitments.length > 0) {
+    if (commitments?.length > 0) {
       return next(new AppError(400, "לא ניתן למחוק כי לאנש יש התחייבות בקמפיין זה"));
     }
     // הסרה של הקמפיין מתוך רשימת הקמפיינים
-    person.Campaigns = person.Campaigns.filter(
+    person.Campaigns = person.Campaigns?.filter(
       (campaign) => campaign !== CampainName
     );
 
