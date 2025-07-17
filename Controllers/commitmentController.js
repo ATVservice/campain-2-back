@@ -327,7 +327,7 @@ exports.uploadCommitments = asyncHandler(async (req, res, next) => {
         // Prepare the operation to record
         const recordedOperation = recordAddOperation({
           OperationType: `הוספה`,
-          Desc: `הוספת תחייבות לקמפיין ${CampainName} בסך ${commitment.CommitmentAmount} ש"ח`,
+          Desc: `הוספת התחייבות לקמפיין ${CampainName} בסך ${commitment.CommitmentAmount} ש"ח`,
           Data: commitment,
           Date: new Date(),
           UserFullName: req.user?.FullName
