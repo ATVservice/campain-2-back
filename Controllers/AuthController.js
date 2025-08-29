@@ -38,20 +38,27 @@ exports.register = asyncHandler(async (req, res, next) => {
     if (!user) {
         return next(new AppError(400, 'Please provide email and password'));
     }
-    // const token = generateToken(user._id, user.Username, '3h');
+    const token = generateToken(user._id, user.Username, '1d');
 
-    // res.cookie('token', token, {
-    //     httpOnly: true,        
-    //     secure: true,
-    // });
+    res.cookie('token', token, {
+    httpOnly: true,
+    secure: true, // make sure you're using HTTPS
+    sameSite: 'Strict',
+    maxAge: 1000 * 60 * 60 * 24 // 1 day
+    });
 
     res.status(201).json({
         status: 'success',
         message: 'Token set in cookie',
-        user
+        user: {
+         id: user._id,
+        Username: user.Username,
+        Role: user.Role,
+        Email: user.Email,
+        FullName: user.FullName
+        }
 
     });
-
 })
 
 
@@ -73,74 +80,66 @@ exports.login = asyncHandler(async (req, res, next) => {
         return next(new AppError(401, 'Incorrect username or password'));
     }
     console.log('ee');
-    const token = generateToken(user._id, user.Username, '3d');
+    const token = generateToken(user._id, user.Username, '1d');
 
-    // Set the token as an HTTP-only cookie
-    // res.cookie('token', token, {
-    //     httpOnly: true,        // Prevents JavaScript access
-    //     secure: process.env.NODE_ENV === 'production', // Secure only in full HTTPS
-    // });
+   res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // only true in production
+    sameSite: 'Strict',
+    maxAge: 1000 * 60 * 60 * 24 // 1 day
+  });
 
-    res.status(201).json({
-        status: 'success',
-        message: 'Token set in cookie',
-        token,
-        user
-    });
+  res.status(200).json({
+    status: 'success',
+    message: 'Logged in successfully',
+    user: {
+      id: user._id,
+      Username: user.Username,
+      Role: user.Role,
+      Email: user.Email,
+    FullName: user.FullName
+
+    }
+  });
 
 })
 exports.logout = asyncHandler(async (req, res, next) => {
-    // console.log(req.cookies);
+  // Clear the 'token' cookie
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict'
+  });
 
-    // if (!req.cookies.token) {
-    //     return next(new AppError(401, 'You are not logged in! Please log in to get access.'));
-    // }
-    res.clearCookie('token');
-    res.status(200).json({
-        status: 'success',
-        message: 'Token cleared'
-    })
-
-
-})
+  res.status(200).json({
+    status: 'success',
+    message: 'Token cleared. Logged out successfully.'
+  });
+});
 
 
 
 exports.protect = asyncHandler(async (req, res, next) => {
-    let token;
+  const token = req.cookies.token;
 
-    // Check for the token in the Authorization header (Bearer token)
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-        token = req.headers.authorization.split(' ')[1]; // Get the token part after "Bearer"
-    }
+  if (!token) {
+    return next(new AppError(401, 'You are not logged in! Please log in to get access.'));
+  }
 
-    // If no token is found, return an error
-    if (!token) {
-        return next(new AppError(401, 'You are not logged in! Please log in to get access.'));
-    }
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return next(new AppError(401, 'Invalid or expired token. Please log in again.'));
+  }
 
-    // Verify the token
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-        return next(new AppError(401, 'Invalid token. Please log in again.'));
-    }
+  const currentUser = await managerModel.findById(decoded.id);
+  if (!currentUser) {
+    return next(new AppError(401, 'The user belonging to this token does not exist.'));
+  }
 
-    // Check if the decoded token has a valid user ID
-    if (!decoded || !decoded.id) {
-        return next(new AppError(401, 'The user belonging to this token does no longer exist.'));
-    }
-
-    // Check if the user still exists
-    const currentUser = await managerModel.findById(decoded.id);
-    if (!currentUser) {
-        return next(new AppError(401, 'The user belonging to this token does no longer exist.'));
-    }
-
-    // Attach the current user to the request object
-    req.user = currentUser;
-    next();
+  req.user = currentUser;
+  next();
 });
 
 
