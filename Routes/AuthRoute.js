@@ -17,4 +17,6 @@ router.route('/reset-password/:resetToken').post(authController.resetPassword)
 router.route('/update-maneger-details').post(authController.protect,authController.restrictTo(['Admin', 'User']), authController.updateManagerDetails)
 router.route('/validate-password').post( authController.protect,authController.restrictTo(['Admin', 'User']), authController.validatePassword)
 router.route('/restore-database').get( authController.protect,authController.restrictTo(['Admin']), restoreDatabaseMiddleware)
+router.route('/protect').get( authController.protect, (req, res) => res.status(200).json({ user: req.user, status: 'success' }))
+
 module.exports = router

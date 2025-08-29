@@ -63,7 +63,10 @@ exports.register = asyncHandler(async (req, res, next) => {
 
 
 exports.login = asyncHandler(async (req, res, next) => {
+    console.log('1');
     console.log(req.body);
+        console.log('2');
+
     
     const { username, password } = req.body;
     // console.log(typeof password);
