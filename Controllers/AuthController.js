@@ -24,8 +24,6 @@ exports.register = asyncHandler(async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-
-
     const user = await managerModel.create({
         Username: username,
         Password: hashedPassword,
